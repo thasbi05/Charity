@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Remix Remix Charity Management \u0026 Accounting 2.1",
+  "description": "A modern, responsive charity management and accounting application with member management, contributions, receipts, payment vouchers, chart of accounts, and financial reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,399 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile with role-based access control",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 120 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "role": { "type": "string", "enum": ["administrator", "staff", "viewer"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role"]
+    },
+    "member": {
+      "title": "Member",
+      "description": "Charity member record",
+      "type": "object",
+      "properties": {
+        "memberNumber": { "type": "string", "maxLength": 30 },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "fatherHusbandName": { "type": "string", "maxLength": 100 },
+        "mobileNumber": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 300 },
+        "joinDate": { "type": "string", "maxLength": 20 },
+        "monthlyContributionAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "totalContributed": { "type": "number" },
+        "receiptsCount": { "type": "number" },
+        "cashBalances": { "type": "object" },
+        "contributionsByCurrency": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["memberNumber", "fullName", "mobileNumber", "status"]
+    },
+    "account": {
+      "title": "Account",
+      "description": "Chart of accounts ledger account",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 20 },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["Asset", "Liability", "Income", "Expense", "Fund/Equity"] },
+        "parentCode": { "type": "string", "maxLength": 20 },
+        "description": { "type": "string", "maxLength": 300 },
+        "balance": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "isSystem": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["code", "name", "type", "isActive"]
+    },
+    "cashAccount": {
+      "title": "CashAccount",
+      "description": "Cash or bank account for liquidity management",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "accountNumber": { "type": "string", "maxLength": 50 },
+        "accountCode": { "type": "string", "maxLength": 20 },
+        "type": { "type": "string", "enum": ["Cash", "Bank", "Other"] },
+        "openingBalance": { "type": "number" },
+        "currentBalance": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["name", "accountCode", "status"]
+    },
+    "cashHolding": {
+      "title": "Cash Holding",
+      "description": "Cash in hand held by members or custodians prior to bank deposit or beneficiary payout",
+      "type": "object",
+      "properties": {
+        "memberId": { "type": "string", "maxLength": 100 },
+        "memberName": { "type": "string", "maxLength": 100 },
+        "memberNumber": { "type": "string", "maxLength": 30 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "category": { "type": "string", "maxLength": 100 },
+        "caseId": { "type": "string", "maxLength": 100 },
+        "caseNumber": { "type": "string", "maxLength": 30 },
+        "caseTitle": { "type": "string", "maxLength": 200 },
+        "caseNote": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["HELD", "DEPOSITED_TO_BANK", "DISBURSED_TO_BENEFICIARY"] },
+        "date": { "type": "string", "maxLength": 20 },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "settledDate": { "type": "string", "maxLength": 20 },
+        "settlementType": { "type": "string", "enum": ["BANK_DEPOSIT", "BENEFICIARY_DISBURSEMENT", "OFFICE_HANDOVER"] },
+        "destinationAccountId": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["memberId", "memberName", "amount", "status", "date"]
+    },
+    "receipt": {
+      "title": "Receipt",
+      "description": "Contribution receipt issued to a member",
+      "type": "object",
+      "properties": {
+        "receiptNumber": { "type": "string", "maxLength": 40 },
+        "receiptDate": { "type": "string", "maxLength": 20 },
+        "memberId": { "type": "string", "maxLength": 100 },
+        "memberNumber": { "type": "string", "maxLength": 30 },
+        "memberName": { "type": "string", "maxLength": 100 },
+        "contributionAccountId": { "type": "string", "maxLength": 100 },
+        "contributionAccountCode": { "type": "string", "maxLength": 20 },
+        "contributionAccountName": { "type": "string", "maxLength": 100 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "exchangeRate": { "type": "number" },
+        "baseCurrencyAmount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["Cash", "Bank Transfer", "Cheque", "Other"] },
+        "cashBankAccountId": { "type": "string", "maxLength": 100 },
+        "cashBankAccountName": { "type": "string", "maxLength": 100 },
+        "referenceNumber": { "type": "string", "maxLength": 60 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "transactionId": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["valid", "voided"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["receiptNumber", "receiptDate", "memberId", "amount", "paymentMethod", "status"]
+    },
+    "payment": {
+      "title": "Payment",
+      "description": "Charity assistance payment to needy beneficiaries",
+      "type": "object",
+      "properties": {
+        "paymentNumber": { "type": "string", "maxLength": 40 },
+        "paymentDate": { "type": "string", "maxLength": 20 },
+        "payeeName": { "type": "string", "maxLength": 100 },
+        "mobileNumber": { "type": "string", "maxLength": 30 },
+        "address": { "type": "string", "maxLength": 300 },
+        "charityCategory": { "type": "string", "maxLength": 60 },
+        "chartOfAccountId": { "type": "string", "maxLength": 100 },
+        "chartOfAccountCode": { "type": "string", "maxLength": 20 },
+        "chartOfAccountName": { "type": "string", "maxLength": 100 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "exchangeRate": { "type": "number" },
+        "baseCurrencyAmount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["Cash", "Bank Transfer", "Cheque", "Other"] },
+        "cashBankAccountId": { "type": "string", "maxLength": 100 },
+        "cashBankAccountName": { "type": "string", "maxLength": 100 },
+        "referenceNumber": { "type": "string", "maxLength": 60 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "supportingDocumentName": { "type": "string", "maxLength": 120 },
+        "supportingDocumentUrl": { "type": "string", "maxLength": 500 },
+        "approvedBy": { "type": "string", "maxLength": 100 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "transactionId": { "type": "string", "maxLength": 100 },
+        "isSplitEvent": { "type": "boolean" },
+        "splitExpense": { "type": "object" },
+        "status": { "type": "string", "enum": ["valid", "voided"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["paymentNumber", "paymentDate", "payeeName", "charityCategory", "amount", "paymentMethod", "status"]
+    },
+    "transaction": {
+      "title": "Transaction",
+      "description": "Double-entry accounting transaction record",
+      "type": "object",
+      "properties": {
+        "transactionNumber": { "type": "string", "maxLength": 40 },
+        "date": { "type": "string", "maxLength": 20 },
+        "type": { "type": "string", "enum": ["Contribution", "Donation", "Charity Payment", "Transfer", "Member Handover", "Adjustment", "Reversal"] },
+        "description": { "type": "string", "maxLength": 500 },
+        "reference": { "type": "string", "maxLength": 60 },
+        "currency": { "type": "string", "maxLength": 10 },
+        "exchangeRate": { "type": "number" },
+        "baseCurrencyAmount": { "type": "number" },
+        "debitAccountId": { "type": "string", "maxLength": 100 },
+        "debitAccountCode": { "type": "string", "maxLength": 20 },
+        "debitAccountName": { "type": "string", "maxLength": 100 },
+        "debitEntityType": { "type": "string", "enum": ["account", "member"] },
+        "debitMemberId": { "type": "string", "maxLength": 100 },
+        "debitMemberNumber": { "type": "string", "maxLength": 30 },
+        "debitMemberName": { "type": "string", "maxLength": 100 },
+        "creditAccountId": { "type": "string", "maxLength": 100 },
+        "creditAccountCode": { "type": "string", "maxLength": 20 },
+        "creditAccountName": { "type": "string", "maxLength": 100 },
+        "creditEntityType": { "type": "string", "enum": ["account", "member"] },
+        "creditMemberId": { "type": "string", "maxLength": 100 },
+        "creditMemberNumber": { "type": "string", "maxLength": 30 },
+        "creditMemberName": { "type": "string", "maxLength": 100 },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["valid", "voided", "reversal"] },
+        "linkedReceiptId": { "type": "string", "maxLength": 100 },
+        "linkedPaymentId": { "type": "string", "maxLength": 100 },
+        "reversalOfTxnId": { "type": "string", "maxLength": 100 },
+        "voidReason": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["transactionNumber", "date", "type", "debitAccountId", "creditAccountId", "amount", "status"]
+    },
+    "organizationSettings": {
+      "title": "OrganizationSettings",
+      "description": "Organization configuration and branding",
+      "type": "object",
+      "properties": {
+        "charityName": { "type": "string", "maxLength": 120 },
+        "logoUrl": { "type": "string", "maxLength": 500 },
+        "address": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 120 },
+        "website": { "type": "string", "maxLength": 120 },
+        "registrationNumber": { "type": "string", "maxLength": 60 },
+        "currency": { "type": "string", "maxLength": 10 },
+        "receiptPrefix": { "type": "string", "maxLength": 20 },
+        "paymentPrefix": { "type": "string", "maxLength": 20 },
+        "financialYear": { "type": "string", "maxLength": 30 },
+        "footerText": { "type": "string", "maxLength": 300 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["charityName", "currency"]
+    },
+    "charity": {
+      "title": "Charity",
+      "description": "Individual charity or organization tenant for multi-charity management",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 30 },
+        "charityName": { "type": "string", "maxLength": 120 },
+        "currency": { "type": "string", "maxLength": 10 },
+        "logoUrl": { "type": "string", "maxLength": 500 },
+        "address": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 120 },
+        "registrationNumber": { "type": "string", "maxLength": 60 },
+        "receiptPrefix": { "type": "string", "maxLength": 20 },
+        "paymentPrefix": { "type": "string", "maxLength": 20 },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["charityName", "currency"]
+    },
+    "auditLog": {
+      "title": "AuditLog",
+      "description": "Immutable system audit record",
+      "type": "object",
+      "properties": {
+        "user": { "type": "string", "maxLength": 100 },
+        "userEmail": { "type": "string", "maxLength": 120 },
+        "action": { "type": "string", "maxLength": 50 },
+        "module": { "type": "string", "maxLength": 50 },
+        "recordId": { "type": "string", "maxLength": 100 },
+        "details": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "module", "recordId"]
+    },
+    "charityCase": {
+      "title": "CharityCase",
+      "description": "Restricted charity case and relief fund initiatives",
+      "type": "object",
+      "properties": {
+        "caseNumber": { "type": "string", "maxLength": 30 },
+        "title": { "type": "string", "maxLength": 200 },
+        "caseType": { "type": "string", "maxLength": 50 },
+        "beneficiaryName": { "type": "string", "maxLength": 100 },
+        "beneficiaryPhone": { "type": "string", "maxLength": 30 },
+        "beneficiaryNationalId": { "type": "string", "maxLength": 50 },
+        "hospitalOrVendor": { "type": "string", "maxLength": 120 },
+        "requestedAmount": { "type": "number" },
+        "approvedAmount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "collectedAmount": { "type": "number" },
+        "disbursedAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["OPEN", "IN_PROGRESS", "FULLY_FUNDED", "DISBURSED", "CLOSED"] },
+        "description": { "type": "string", "maxLength": 2000 },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["caseNumber", "title", "beneficiaryName", "requestedAmount", "status"]
+    },
+    "journalEntry": {
+      "title": "JournalEntry",
+      "description": "Double-entry general journal vouchers and balance proofs",
+      "type": "object",
+      "properties": {
+        "journalNumber": { "type": "string", "maxLength": 40 },
+        "date": { "type": "string", "maxLength": 20 },
+        "narration": { "type": "string", "maxLength": 1000 },
+        "reference": { "type": "string", "maxLength": 60 },
+        "entryType": { "type": "string", "maxLength": 40 },
+        "totalDebit": { "type": "number" },
+        "totalCredit": { "type": "number" },
+        "isBalanced": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["POSTED", "VOIDED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["journalNumber", "date", "narration", "totalDebit", "totalCredit", "status"]
+    },
+    "document": {
+      "title": "Document",
+      "description": "Uploaded or attached receipt and verification documents",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 150 },
+        "url": { "type": "string", "maxLength": 500 },
+        "type": { "type": "string", "maxLength": 50 },
+        "size": { "type": "number" },
+        "uploadedAt": { "type": "string", "format": "date-time" },
+        "uploadedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["name", "url"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "User profiles and RBAC permissions"
+    },
+    "/members/{memberId}": {
+      "schema": "member",
+      "description": "Charity member profiles and contribution history"
+    },
+    "/accounts/{accountId}": {
+      "schema": "account",
+      "description": "Chart of Accounts records"
+    },
+    "/cashAccounts/{cashAccountId}": {
+      "schema": "cashAccount",
+      "description": "Cash in hand and bank accounts"
+    },
+    "/cashHoldings/{holdingId}": {
+      "schema": "cashHolding",
+      "description": "Member cash-in-hand custody and allocation records"
+    },
+    "/cases/{caseId}": {
+      "schema": "charityCase",
+      "description": "Restricted charity cases and targeted appeal relief campaigns"
+    },
+    "/receipts/{receiptId}": {
+      "schema": "receipt",
+      "description": "Contribution receipts generated for members"
+    },
+    "/payments/{paymentId}": {
+      "schema": "payment",
+      "description": "Charity assistance disbursements and vouchers"
+    },
+    "/journal_entries/{entryId}": {
+      "schema": "journalEntry",
+      "description": "General journal vouchers and double-entry balanced lines"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "transaction",
+      "description": "General journal balanced double-entry transactions"
+    },
+    "/documents/{docId}": {
+      "schema": "document",
+      "description": "Attached receipts and case verification documents"
+    },
+    "/organizationSettings/{settingsId}": {
+      "schema": "organizationSettings",
+      "description": "Organization profile and settings"
+    },
+    "/charities/{charityId}": {
+      "schema": "charity",
+      "description": "Organizations/Charities list for multi-charity management"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "auditLog",
+      "description": "Audit trail log entries"
+    }
+  }
+}

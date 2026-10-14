@@ -1,0 +1,193 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .font-brand {
+    font-family: 'El Messiri', 'Cinzel', 'Plus Jakarta Sans', serif, sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'Outfit', 'El Messiri', 'Plus Jakarta Sans', sans-serif;
+  }
+}
+
+@media print {
+  html, body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Strictly hide all application shell UI: sidebar, topbar, nav, breadcrumbs, search bars, action buttons, modals backdrop */
+  aside, 
+  nav, 
+  header, 
+  .no-print, 
+  #sidebar, 
+  #topbar, 
+  .top-bar, 
+  .breadcrumbs-bar, 
+  button, 
+  input, 
+  select, 
+  textarea, 
+  .modal-backdrop,
+  [role="tooltip"] {
+    display: none !important;
+  }
+
+  /* Prevent background overlay and positioning locks from breaking the page flow */
+  #root, 
+  main, 
+  .fixed, 
+  .relative, 
+  .overflow-hidden, 
+  .overflow-y-auto, 
+  .overflow-x-auto {
+    position: static !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    backdrop-filter: none !important;
+  }
+
+  .max-w-2xl, .max-w-3xl, .max-w-4xl, .max-w-xl, .max-w-5xl, .max-w-6xl, .max-w-7xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Target printable content and tables */
+  .printable-content,
+  .printable-area,
+  #printable-voucher-body,
+  #printable-receipt,
+  #printable-payment-voucher,
+  #printable-transaction-voucher,
+  #template-designer-preview,
+  #member-ledger-container,
+  #trial-balance-report,
+  #balance-sheet-report {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 6mm !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  /* Centered Organization Logo Watermark across all print & PDF outputs */
+  .document-watermark-container {
+    position: relative !important;
+  }
+
+  .document-watermark {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+    user-select: none !important;
+    z-index: 0 !important;
+    overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .document-watermark img {
+    display: block !important;
+    object-fit: contain !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* When printing a focused modal (voucher, receipt, or transaction details), hide main view behind it */
+  body:has(#printable-voucher-body) main,
+  body:has(#printable-receipt) main,
+  body:has(#printable-payment-voucher) main,
+  body:has(#printable-transaction-voucher) main,
+  body:has(#template-designer-preview) main,
+  body:has(.printable-area) main,
+  body.printing-modal main {
+    display: none !important;
+  }
+
+  /* Ensure modal backdrop and container flow cleanly onto printed page */
+  body.printing-modal .fixed.inset-0,
+  .fixed.inset-0:has(#printable-voucher-body),
+  .fixed.inset-0:has(#printable-receipt),
+  .fixed.inset-0:has(#printable-payment-voucher),
+  .fixed.inset-0:has(#printable-transaction-voucher),
+  .fixed.inset-0:has(#template-designer-preview) {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  th, td {
+    padding: 6px 8px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    color: #0f172a !important;
+  }
+
+  /* Signature blocks */
+  .signature-block,
+  .print-signature-area {
+    page-break-inside: avoid !important;
+    margin-top: 15mm !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+}
+

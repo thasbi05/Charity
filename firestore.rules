@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in ['udyavarmuslimunityuae@gmail.com', 'thasbi05@gmail.com'] ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['administrator', 'SUPER_ADMIN', 'CHARITY_ADMIN'])
+      );
+    }
+    
+    function isStaffOrAdmin() {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['administrator', 'staff', 'SUPER_ADMIN', 'CHARITY_ADMIN', 'STAFF'])
+      );
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /members/{memberId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if true;
+    }
+
+    match /accounts/{accountId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /cashAccounts/{cashAccountId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /cashHoldings/{holdingId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /cases/{caseId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if true;
+    }
+
+    match /receipts/{receiptId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /journal_entries/{entryId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /documents/{docId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /organizationSettings/{settingsId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /charities/{charityId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,492 @@
+// =============================================================================
+// PRISMA SCHEMA: AUDITABLE MULTI-TENANT CHARITY MANAGEMENT & FUND ACCOUNTING
+// =============================================================================
+// Compliant with strict 4-way financial separation, double-entry balanced ledger,
+// multi-currency normalization, multi-tenancy, and immutable audit logs.
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum UserRole {
+  SUPER_ADMIN
+  CHARITY_ADMIN
+  STAFF
+  AUDITOR
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum CaseStatus {
+  OPEN
+  IN_PROGRESS
+  FULLY_FUNDED
+  DISBURSED
+  CLOSED
+}
+
+enum CaseType {
+  MEDICAL
+  HOUSE_MAINTENANCE
+  WEDDING
+  MASJID_WORK
+  EDUCATION
+  FOOD_AID
+  EMERGENCY
+  FUNERAL
+  OTHER
+}
+
+// The Core Invariant: 4 Strict Immutable Financial Classifications
+enum FinancialClassification {
+  MONTHLY_CONTRIBUTION // Regular recurring member dues
+  SPECIAL_CONTRIBUTION // Designated/restricted donation linked to a CharityCase
+  CHARITY_ASSISTANCE   // Outgoing relief paid to hospital/vendor/beneficiary
+  ADMINISTRATIVE_EXPENSE // Operational costs (rent, utilities, IT, stationery)
+}
+
+enum ContributionType {
+  MONTHLY
+  SPECIAL
+}
+
+enum DisbursementType {
+  CHARITY_ASSISTANCE
+  ADMINISTRATIVE
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  PROGRAM_EXPENSE  // Direct charitable aid disbursements
+  ADMIN_EXPENSE    // General operating and overhead expenses
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  ONLINE_GATEWAY
+  OTHER
+}
+
+enum TransactionStatus {
+  POSTED
+  VOIDED
+  REVERSED
+}
+
+// -----------------------------------------------------------------------------
+// MULTI-TENANT CORE
+// -----------------------------------------------------------------------------
+
+model Tenant {
+  id                 String   @id @default(uuid())
+  code               String   @unique // e.g. "DEFAULT", "AL_IHSAN"
+  name               String   // e.g. "Al-Ihsan Charity & Relief Society"
+  registrationNumber String?
+  baseCurrency       String   @default("AED") // ISO 4217 currency code
+  financialYearStart Int      @default(2026)
+  email              String?
+  phone              String?
+  address            String?
+  website            String?
+  logoUrl            String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  users              User[]
+  members            Member[]
+  charityCases       CharityCase[]
+  contributions      Contribution[]
+  disbursements      Disbursement[]
+  accounts           Account[]
+  journalEntries     JournalEntry[]
+  auditLogs          AuditLog[]
+  documentAttachments DocumentAttachment[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String    @unique
+  fullName     String
+  passwordHash String
+  role         UserRole  @default(STAFF)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs    AuditLog[]
+
+  @@index([tenantId, role])
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------------
+// MEMBER MANAGEMENT & SEPARATED ADDRESS ENTITIES
+// -----------------------------------------------------------------------------
+
+model Member {
+  id                        String        @id @default(uuid())
+  tenantId                  String
+  tenant                    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberNumber              String        // e.g. MEM-0001
+  fullName                  String
+  fatherHusbandName         String?
+  mobileNumber              String
+  email                     String?
+  joinDate                  DateTime      @default(now())
+  monthlyContributionAmount Decimal       @db.Decimal(18, 2)
+  status                    MemberStatus  @default(ACTIVE)
+  notes                     String?       @db.Text
+  photoUrl                  String?
+
+  // Separated 1:1 Address Relations
+  localAddress              LocalAddress?
+  homeCountryAddress        HomeCountryAddress?
+
+  // Aggregated totals cached for high-speed indexing (reconciled by journal)
+  totalMonthlyContributed   Decimal       @default(0) @db.Decimal(18, 2)
+  totalSpecialContributed   Decimal       @default(0) @db.Decimal(18, 2)
+
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  // Relations
+  contributions             Contribution[]
+
+  @@unique([tenantId, memberNumber])
+  @@index([tenantId, status])
+  @@map("members")
+}
+
+model LocalAddress {
+  id                String   @id @default(uuid())
+  memberId          String   @unique
+  member            Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  building          String?
+  flat              String?
+  street            String?
+  area              String?
+  city              String?  // e.g. "Dubai"
+  stateOrEmirate    String?  // e.g. "Dubai", "Abu Dhabi", "Sharjah"
+  postalCodeOrPoBox String?
+  country           String   @default("United Arab Emirates")
+  phone             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("local_addresses")
+}
+
+model HomeCountryAddress {
+  id                String   @id @default(uuid())
+  memberId          String   @unique
+  member            Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  building          String?  // House / Villa name
+  flat              String?  // Door / Unit number
+  street            String?  // Village / Street name
+  area              String?  // Taluk / County / Sub-district
+  city              String?  // Town / City
+  stateOrEmirate    String?  // State / Province (e.g. Kerala, Punjab)
+  postalCodeOrPoBox String?  // Postal PIN / ZIP
+  country           String   // Country (e.g. "India", "Pakistan", "Egypt")
+  phone             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("home_country_addresses")
+}
+
+// -----------------------------------------------------------------------------
+// CHARITY CASE MANAGEMENT (DESIGNATED / RESTRICTED FUNDS)
+// -----------------------------------------------------------------------------
+
+model CharityCase {
+  id                    String        @id @default(uuid())
+  tenantId              String
+  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caseNumber            String        // e.g. CASE-2026-00001 or MED-2026-00001
+  title                 String
+  caseType              CaseType
+  beneficiaryName       String
+  beneficiaryPhone      String?
+  beneficiaryNationalId String?
+  hospitalOrVendor      String?       // Specific hospital, clinic, contractor
+  requestedAmount       Decimal       @db.Decimal(18, 2)
+  approvedAmount        Decimal       @db.Decimal(18, 2)
+  currency              String        @default("AED")
+  collectedAmount       Decimal       @default(0) @db.Decimal(18, 2) // Restricted donations
+  disbursedAmount       Decimal       @default(0) @db.Decimal(18, 2) // Paid aid
+  status                CaseStatus    @default(OPEN)
+  description           String        @db.Text
+  notes                 String?       @db.Text
+  startDate             DateTime?
+  targetDate            DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  // Relations
+  specialContributions  Contribution[]
+  charityDisbursements  Disbursement[]
+
+  @@unique([tenantId, caseNumber])
+  @@index([tenantId, status])
+  @@map("charity_cases")
+}
+
+// -----------------------------------------------------------------------------
+// CONTRIBUTIONS (INCOMING REVENUE - STRICTLY DISCRIMINATED)
+// -----------------------------------------------------------------------------
+
+model Contribution {
+  id                 String             @id @default(uuid())
+  tenantId           String
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receiptNumber      String             // e.g. RCPT-2026-00001
+  contributionType   ContributionType   // MONTHLY vs SPECIAL
+  receiptDate        DateTime           @default(now())
+
+  // Member Link (Required for monthly, optional for guest special donor)
+  memberId           String
+  member             Member             @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  // Restricted Case Link (ONLY populated for SPECIAL contributions)
+  caseId             String?
+  charityCase        CharityCase?       @relation(fields: [caseId], references: [id], onDelete: Restrict)
+
+  // Period Month (ONLY populated for MONTHLY contributions, e.g. "2026-03")
+  periodMonth        String?
+
+  // Financial Figures & Multi-Currency Normalization
+  originalAmount     Decimal            @db.Decimal(18, 2)
+  originalCurrency   String             @default("AED") // e.g. AED, INR, USD
+  exchangeRate       Decimal            @default(1.000000) @db.Decimal(12, 6)
+  baseCurrencyAmount Decimal            @db.Decimal(18, 2) // Normalized to Tenant.baseCurrency
+
+  paymentMethod      PaymentMethod      @default(CASH)
+  cashBankAccountId  String             // References Account ID for Cash/Bank
+  incomeAccountId    String             // References Account ID for Income (4010 or 4030)
+  referenceNumber    String?
+  notes              String?            @db.Text
+
+  // Double-Entry Ledger Link
+  journalEntryId     String?            @unique
+  journalEntry       JournalEntry?      @relation(fields: [journalEntryId], references: [id])
+
+  status             TransactionStatus  @default(POSTED)
+  voidedAt           DateTime?
+  voidedBy           String?
+  voidReason         String?
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([tenantId, receiptNumber])
+  @@index([tenantId, memberId, periodMonth])
+  @@index([tenantId, contributionType])
+  @@map("contributions")
+}
+
+// -----------------------------------------------------------------------------
+// DISBURSEMENTS & EXPENSES (OUTGOING FUNDS - STRICTLY DISCRIMINATED)
+// -----------------------------------------------------------------------------
+
+model Disbursement {
+  id                 String             @id @default(uuid())
+  tenantId           String
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voucherNumber      String             // e.g. PAY-2026-00001 or EXP-2026-00001
+  disbursementType   DisbursementType   // CHARITY_ASSISTANCE vs ADMINISTRATIVE
+  paymentDate        DateTime           @default(now())
+
+  payeeName          String
+  payeePhone         String?
+  payeeAddress       String?
+
+  // Restricted Case Link (ONLY populated for CHARITY_ASSISTANCE)
+  caseId             String?
+  charityCase        CharityCase?       @relation(fields: [caseId], references: [id], onDelete: Restrict)
+
+  // Administrative / Assistance Category
+  category           String             // Medical, Rent, Printing, IT, Utilities
+  invoiceNumber      String?
+
+  // Financial Figures & Multi-Currency Normalization
+  originalAmount     Decimal            @db.Decimal(18, 2)
+  originalCurrency   String             @default("AED")
+  exchangeRate       Decimal            @default(1.000000) @db.Decimal(12, 6)
+  baseCurrencyAmount Decimal            @db.Decimal(18, 2)
+
+  paymentMethod      PaymentMethod      @default(BANK_TRANSFER)
+  cashBankAccountId  String             // Credit side: Cash/Bank Account ID
+  expenseAccountId   String             // Debit side: Expense Account ID (5xxx or 6xxx)
+  referenceNumber    String?
+  description        String             @db.Text
+
+  // Sign-off Roles for Internal Control
+  preparedBy         String?
+  verifiedBy         String?
+  approvedBy         String
+
+  // Double-Entry Ledger Link
+  journalEntryId     String?            @unique
+  journalEntry       JournalEntry?      @relation(fields: [journalEntryId], references: [id])
+
+  status             TransactionStatus  @default(POSTED)
+  voidedAt           DateTime?
+  voidedBy           String?
+  voidReason         String?
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([tenantId, voucherNumber])
+  @@index([tenantId, disbursementType])
+  @@map("disbursements")
+}
+
+// -----------------------------------------------------------------------------
+// DOUBLE-ENTRY GENERAL LEDGER (STRICT INVARIANT: DEBIT == CREDIT)
+// -----------------------------------------------------------------------------
+
+model Account {
+  id          String         @id @default(uuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code        String         // e.g. "1000", "1010", "4010", "5010", "6010"
+  name        String         // e.g. "Cash in Hand", "Member Contributions Income"
+  type        AccountType
+  parentCode  String?
+  description String?
+  balance     Decimal        @default(0) @db.Decimal(18, 2)
+  isActive    Boolean        @default(true)
+  isSystem    Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  journalLines JournalLine[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, type])
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id                     String                  @id @default(uuid())
+  tenantId               String
+  tenant                 Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entryNumber            String                  // e.g. JRNL-2026-00001
+  date                   DateTime                @default(now())
+  description            String                  @db.Text
+  sourceClassification   FinancialClassification // The 4 strict types
+  sourceReferenceNumber  String                  // e.g. RCPT-2026-00001, PAY-2026-00001
+  totalDebit             Decimal                 @db.Decimal(18, 2)
+  totalCredit            Decimal                 @db.Decimal(18, 2)
+  isBalanced             Boolean                 @default(true) // Guaranteed by transaction engine
+
+  status                 TransactionStatus       @default(POSTED)
+  voidedAt               DateTime?
+  voidedBy               String?
+  voidReason             String?
+  reversalEntryId        String?                 // Linked reversal journal entry ID
+
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  lines                  JournalLine[]
+  contribution           Contribution?
+  disbursement           Disbursement?
+
+  @@unique([tenantId, entryNumber])
+  @@index([tenantId, date])
+  @@index([tenantId, sourceClassification])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id                 String       @id @default(uuid())
+  journalEntryId     String
+  journalEntry       JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId          String
+  account            Account      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  debit              Decimal      @default(0) @db.Decimal(18, 2)
+  credit             Decimal      @default(0) @db.Decimal(18, 2)
+  currency           String       @default("AED")
+  exchangeRate       Decimal      @default(1.000000) @db.Decimal(12, 6)
+  baseCurrencyDebit  Decimal      @default(0) @db.Decimal(18, 2)
+  baseCurrencyCredit Decimal      @default(0) @db.Decimal(18, 2)
+  description        String?
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_lines")
+}
+
+// -----------------------------------------------------------------------------
+// AUDIT LOG & POLYMORPHIC DOCUMENT ATTACHMENTS
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id           String    @id @default(uuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail    String
+  action       String    // CREATED, UPDATED, VOIDED, REVERSED
+  module       String    // Member, Contribution, Disbursement, Case, Account
+  recordId     String
+  recordNumber String?
+  details      String    @db.Text
+  reason       String?   @db.Text
+  oldValues    Json?
+  newValues    Json?
+  ipAddress    String?
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId, module, recordId])
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+model DocumentAttachment {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entityType  String   // "Member", "Contribution", "Disbursement", "CharityCase"
+  entityId    String
+  fileName    String
+  fileType    String   // MIME type e.g. "application/pdf", "image/jpeg"
+  fileSize    Int      // Bytes
+  storagePath String   // S3/GCS or Firebase storage path
+  fileUrl     String?
+  description String?
+  uploadedBy  String
+  uploadedAt  DateTime @default(now())
+
+  @@index([tenantId, entityType, entityId])
+  @@map("document_attachments")
+}
