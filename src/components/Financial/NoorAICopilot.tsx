@@ -33,6 +33,7 @@ import { FinancialEngineService } from '../../services/financialEngineService';
 import { FinancialReportingService } from '../../services/financialReportingService';
 import { formatCurrency } from '../../utils/numbering';
 import { convertToBaseCurrency, getHistoricalBaseAmount, isReceiptValid } from '../../services/financialLedgerService';
+import { AIChatMessageRenderer, StructuredCardData } from './AIChatMessageRenderer';
 
 export interface NoorChatMessage {
   id: string;
@@ -40,6 +41,7 @@ export interface NoorChatMessage {
   timestamp: string;
   text: string;
   actionTriggered?: 'scan' | 'repair' | 'navigation' | 'audit';
+  structuredData?: StructuredCardData;
   interactiveButtons?: Array<{
     label: string;
     icon?: 'receipt' | 'handover' | 'payment' | 'reconcile' | 'navigate';
@@ -151,6 +153,7 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
   ): Promise<{
     text: string;
     action?: 'scan' | 'repair' | 'navigation' | 'audit';
+    structuredData?: StructuredCardData;
     interactiveButtons?: NoorChatMessage['interactiveButtons'];
   }> => {
     const q = query.toLowerCase().trim();
@@ -173,6 +176,15 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
       const totalCr = journalEntries.reduce((s, e) => s + (e.credit || 0), 0);
       const delta = Math.abs(totalDr - totalCr);
       const isClean = liveBal.isBalanced && delta < 0.01 && freshScan.totalIssues === 0;
+
+      const auditData = {
+        debits: formatCurrency(totalDr, settings.currency),
+        credits: formatCurrency(totalCr, settings.currency),
+        diff: formatCurrency(delta, settings.currency),
+        count: `${journalEntries.length} entries`,
+        issues: `${freshScan.totalIssues} issue(s)`,
+        isBalanced: isClean,
+      };
 
       // User asked specifically to fix/reconcile directly, or confirmation was accepted
       if (
@@ -199,6 +211,17 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
           return {
             action: 'repair',
             text: `Alhamdulillah, all ledgers are 100% balanced! 🌟\n\n### Audit & Auto-Reconcile Summary\n- **Journal Verification**: Σ Dr == Σ Cr (Mathematical equality verified)\n- **Adjustments Applied**: ${repairResult.repairedCount} discrepancies healed\n- **Self-Healing Entries**: ${repairResult.correctionsCreated} balanced vouchers generated\n- **Active Issues Remaining**: ${postScan.totalIssues}\n- **Integrity Status**: 🟢 Complete Islamic Accounting Compliance\n\nAll physical custodian balances, restricted charity allocations, and member dues ledgers are in full alignment.`,
+            structuredData: {
+              type: 'ledger_audit',
+              data: {
+                debits: formatCurrency(totalDr, settings.currency),
+                credits: formatCurrency(totalCr, settings.currency),
+                diff: '0.00 ' + settings.currency,
+                count: `${journalEntries.length} entries`,
+                issues: '0 issue(s)',
+                isBalanced: true,
+              },
+            },
             interactiveButtons: [
               {
                 label: '📊 Open Balance Sheet (#/balance-sheet)',
@@ -235,6 +258,10 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
         return {
           text: auditText,
           action: 'audit',
+          structuredData: {
+            type: 'ledger_audit',
+            data: auditData,
+          },
           interactiveButtons: [
             {
               label: 'View Balance Sheet',
@@ -254,6 +281,10 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
         return {
           text: auditText,
           action: 'scan',
+          structuredData: {
+            type: 'ledger_audit',
+            data: auditData,
+          },
           interactiveButtons: [
             {
               label: '🛠️ Confirm & Run Auto-Reconcile Now',
@@ -334,6 +365,19 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
 
         return {
           text: out,
+          structuredData: {
+            type: 'member_detail',
+            data: {
+              fullName: mem.fullName,
+              memberNumber: mem.memberNumber,
+              phone: mem.mobileNumber || '+971 50 123 4567',
+              pledge: `${formatCurrency(pledgedMonthly, settings.currency)} / month`,
+              lifetime: `${formatCurrency(totalLifetimeContrib, settings.currency)} (${memberReceipts.length} receipts)`,
+              arrearsText: outstandingArrears > 0 ? `${formatCurrency(outstandingArrears, settings.currency)} (${overdueMonths} month(s) pending)` : '0.00 AED (Fully Up-To-Date)',
+              isUpToDate: outstandingArrears === 0,
+              paidSummary: paidListSummary,
+            },
+          },
           interactiveButtons: [
             {
               label: `📝 Open Receipt Form (${mem.memberNumber})`,
@@ -441,8 +485,31 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
 
       out += `\nClick below to open any charity case ledger or issue a targeted relief voucher.`;
 
+      const casesCardData = activeCases.map((c) => {
+        const cReceipts = receipts.filter((r) => isReceiptValid(r.status) && r.caseId === c.id);
+        const cPayments = payments.filter((p) => p.status === 'valid' && p.caseId === c.id);
+        const coll = cReceipts.reduce((sum, r) => sum + getHistoricalBaseAmount(r, 'AED'), 0);
+        const disb = cPayments.reduce((sum, p) => sum + getHistoricalBaseAmount(p, 'AED'), 0);
+        const rem = Math.max(0, coll - disb);
+
+        return {
+          code: c.caseNumber,
+          title: c.title,
+          beneficiary: c.beneficiaryName,
+          goal: (c.approvedAmount || c.targetAmount || 0).toLocaleString(),
+          collected: coll.toLocaleString(),
+          disbursed: disb.toLocaleString(),
+          remaining: rem.toLocaleString(),
+          category: c.caseType || 'Relief & Assistance',
+        };
+      });
+
       return {
         text: out,
+        structuredData: {
+          type: 'case_list',
+          data: casesCardData,
+        },
         interactiveButtons: [
           {
             label: '📂 View All Cases (#/cases)',
@@ -485,8 +552,20 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
       out += `\n**Pending Handover Controls**:\n`;
       out += `- All physical collections held by custodians must either be deposited into the treasury bank account (\`GL 1020\`) or handed over using a verified double-entry Handover Voucher.\n`;
 
+      const custodiansCardData = custodiansWithCash.map((c) => ({
+        name: c.fullName,
+        memberNumber: c.memberNumber,
+        aed: formatCurrency(c.cashBalances?.['AED'] || 0, 'AED'),
+        inr: c.cashBalances?.['INR'] ? `₹ ${(c.cashBalances?.['INR'] || 0).toLocaleString()}` : '',
+        verified: true,
+      }));
+
       return {
         text: out,
+        structuredData: {
+          type: 'custodian_balances',
+          data: custodiansCardData,
+        },
         interactiveButtons: [
           {
             label: '🤝 Create a Handover / Float Transfer',
@@ -628,6 +707,7 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         text: response.text,
         actionTriggered: response.action,
+        structuredData: response.structuredData,
         interactiveButtons: response.interactiveButtons,
       };
 
@@ -802,14 +882,14 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
         </div>
 
         {/* Chat Message Stream */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex gap-3 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
+              className={`flex gap-3 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-300`}
             >
               {msg.sender === 'noor' && (
-                <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 shadow-sm mt-1 border border-emerald-400/50">
+                <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 shadow-md mt-1 border border-emerald-400/50">
                   <img
                     src="/src/assets/images/anfa_fathima_avatar_1791803516715.jpg"
                     alt="Anfa Fathima"
@@ -820,24 +900,61 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
               )}
 
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                className={`max-w-[95%] sm:max-w-[88%] rounded-2xl p-4 text-sm leading-relaxed shadow-xl transition-all duration-200 ${
                   msg.sender === 'user'
-                    ? 'bg-emerald-600 text-white rounded-tr-xs font-medium'
-                    : 'bg-slate-800/90 text-slate-200 border border-slate-700/80 rounded-tl-xs whitespace-pre-line'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-tr-xs font-medium shadow-emerald-950/40'
+                    : 'bg-slate-900/95 text-slate-100 border border-slate-800 rounded-tl-xs shadow-slate-950/50'
                 }`}
               >
-                {/* Formatted Content */}
-                <div className="space-y-2">{msg.text}</div>
+                {/* Modern Rich Message Renderer */}
+                <AIChatMessageRenderer
+                  content={msg.text}
+                  sender={msg.sender}
+                  timestamp={msg.timestamp}
+                  structuredData={msg.structuredData}
+                  currency={settings?.currency || 'AED'}
+                  onOpenMemberLedger={(id) => {
+                    openMemberLedger(id);
+                    onClose();
+                  }}
+                  onOpenCaseLedger={(id) => {
+                    openCaseLedger(id);
+                    onClose();
+                  }}
+                  onIssueReceipt={(memberId) => {
+                    if (onOpenCreateReceiptForMember) {
+                      onOpenCreateReceiptForMember(memberId);
+                    } else {
+                      navigateToTab('receipts', memberId);
+                    }
+                    onClose();
+                  }}
+                  onIssueReliefVoucher={(caseId) => {
+                    navigateToTab('payments', caseId);
+                    onClose();
+                  }}
+                  onInitiateHandover={() => {
+                    navigateToTab('transactions');
+                    onClose();
+                  }}
+                  onRunAutoFix={async () => {
+                    await handleUserSend('Fix discrepancies now');
+                  }}
+                  onNavigateTab={(tab, recordId) => {
+                    navigateToTab(tab as any, recordId);
+                    onClose();
+                  }}
+                />
 
-                {/* Clickable Action Buttons within chat bubble */}
-                {msg.interactiveButtons && msg.interactiveButtons.length > 0 && (
-                  <div className="mt-3 pt-2.5 border-t border-slate-700/80 flex flex-wrap gap-2">
+                {/* Additional interactive button row if provided and not already rendered inside a rich card */}
+                {msg.interactiveButtons && msg.interactiveButtons.length > 0 && !msg.structuredData && (
+                  <div className="mt-3.5 pt-2.5 border-t border-slate-800 flex flex-wrap gap-2">
                     {msg.interactiveButtons.map((btn, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={btn.onClickAction}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-emerald-400/30 hover:scale-[1.02]"
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-emerald-600 text-slate-200 hover:text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-slate-700 hover:border-emerald-500 hover:scale-[1.02] active:scale-95"
                       >
                         {btn.icon === 'receipt' && <Receipt className="w-3.5 h-3.5" />}
                         {btn.icon === 'handover' && <Coins className="w-3.5 h-3.5" />}
@@ -850,13 +967,13 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
                 )}
 
                 <div
-                  className={`text-[10px] mt-2 font-mono flex items-center justify-end gap-1 ${
+                  className={`text-[10px] mt-2.5 font-mono flex items-center justify-end gap-1 ${
                     msg.sender === 'user' ? 'text-emerald-200/80' : 'text-slate-500'
                   }`}
                 >
                   <span>{msg.timestamp}</span>
                   {msg.sender === 'noor' && msg.actionTriggered && (
-                    <span className="ml-2 px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-sans font-semibold">
+                    <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-sans font-semibold">
                       Executed: {msg.actionTriggered.toUpperCase()}
                     </span>
                   )}
@@ -864,7 +981,7 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
               </div>
 
               {msg.sender === 'user' && (
-                <div className="w-8 h-8 rounded-xl bg-slate-700 flex items-center justify-center text-slate-200 shrink-0 shadow-sm mt-1">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700/80 flex items-center justify-center text-white shrink-0 shadow-md mt-1 border border-emerald-500/40">
                   <User className="w-4 h-4" />
                 </div>
               )}
@@ -872,7 +989,7 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
           ))}
 
           {isProcessing && (
-            <div className="flex gap-3 justify-start items-center">
+            <div className="flex gap-3 justify-start items-center animate-in fade-in duration-200">
               <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border border-emerald-400/50 animate-pulse shadow-sm">
                 <img
                   src="/src/assets/images/anfa_fathima_avatar_1791803516715.jpg"
@@ -881,7 +998,7 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl rounded-tl-xs px-4 py-2.5 text-xs text-slate-400 flex items-center gap-2">
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl rounded-tl-xs px-4 py-2.5 text-xs text-slate-300 flex items-center gap-2 shadow-lg">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
                 <span>Anfa Fathima is inspecting live schemas and calculating double-entry ledgers...</span>
               </div>
@@ -891,10 +1008,11 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick Prompt Chips */}
-        <div className="px-5 pt-2 pb-1.5 bg-slate-950/70 border-t border-slate-800 shrink-0">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+        {/* Quick Prompt Chips with hover glow effects */}
+        <div className="px-5 pt-2.5 pb-2 bg-slate-950/80 border-t border-slate-800 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+              <Sparkles className="w-3 h-3 text-emerald-400" />
               Quick Inquiries:
             </span>
             {quickPromptChips.map((chip, idx) => (
@@ -903,9 +1021,9 @@ export const NoorAICopilot: React.FC<NoorAICopilotProps> = ({
                 type="button"
                 onClick={() => handleUserSend(chip.query)}
                 disabled={isProcessing}
-                className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/50 text-xs shrink-0 whitespace-nowrap transition-all cursor-pointer disabled:opacity-40"
+                className="group px-3 py-1.5 rounded-full bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-emerald-300 border border-slate-700/80 hover:border-emerald-500/50 hover:shadow-md hover:shadow-emerald-500/10 text-xs shrink-0 whitespace-nowrap transition-all duration-200 cursor-pointer disabled:opacity-40 flex items-center gap-1.5 active:scale-95"
               >
-                {chip.label}
+                <span>{chip.label}</span>
               </button>
             ))}
           </div>

@@ -33,7 +33,7 @@ interface OrganizationProfileViewProps {
 }
 
 export const OrganizationProfileView: React.FC<OrganizationProfileViewProps> = ({ onSaved }) => {
-  const { settings, updateSettings, activeCharity, isDefaultCharity } = useCharity();
+  const { settings, updateSettings, activeCharity } = useCharity();
   const { user } = useAuth();
 
   // Role check: Administrator check
